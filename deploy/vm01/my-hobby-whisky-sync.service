@@ -1,0 +1,7 @@
+[Unit]
+Description=my-hobby 위스키 시트 양방향 동기화 (fullSync)
+After=my-hobby-next.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/curl -s -m 60 -X POST http://127.0.0.1:3003/my-hobby/api/whisky/sync
