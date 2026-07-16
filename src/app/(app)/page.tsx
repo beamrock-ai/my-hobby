@@ -4,6 +4,7 @@ import Link from 'next/link'
 const CARDS = [
   { icon: '🍶', name: '주류 노트', desc: '위스키·보드카·리큐르 등 관리', href: '/whisky', ready: true },
   { icon: '🏆', name: '순위', desc: '평점·시음유형별 랭킹', href: '/ranking', ready: true },
+  { icon: '🍷', name: '액세서리', desc: '잔·디캔터·바도구 등', href: '/accessory', ready: true },
   { icon: '📖', name: '위스키 용어사전', desc: '용어 검색·색인', href: '/glossary', ready: true },
   { icon: '🎬', name: '영화', desc: '준비중', href: '', ready: false },
   { icon: '🎮', name: '게임', desc: '준비중', href: '', ready: false },

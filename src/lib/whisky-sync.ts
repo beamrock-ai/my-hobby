@@ -1,6 +1,6 @@
 import { createServiceClient } from '@/lib/supabase'
-import { whiskyInfo } from '@/lib/translate'
-import { readWhiskySheet, writeWhiskySheet, ensureCategoryDropdown } from '@/lib/sheets'
+import { whiskyInfo, LIQUORS } from '@/lib/translate'
+import { readWhiskySheet, writeWhiskySheet, ensureMetaDropdowns } from '@/lib/sheets'
 
 // 위스키명(PK) 기준 구글시트[위스키] ↔ DB 양방향 동기화 모듈.
 //  - pullAdd    : 시트에만 있는 위스키명 → DB 추가(부족 언어 자동변환)
@@ -10,9 +10,11 @@ import { readWhiskySheet, writeWhiskySheet, ensureCategoryDropdown } from '@/lib
 
 type DB = ReturnType<typeof createServiceClient>
 
-// A~N: 카테고리는 단일 드롭다운, 구매 일자/상점/금액 분리(필터용)
-const HEADER = ['한글명', '영문명', '카테고리', '구매일자', '구매상점', '구매금액', '구매횟수', '최저가(시점·상점)', '평균가', '최고가(시점·상점)', '추천인', '추천이유', '사진URL', '비고']
-const CATEGORY_COL = 2 // C열(0-based)
+// A~O: 주종 + 한글명 + 영문명 + 카테고리(드롭다운) + 구매 일자/상점/금액 분리(필터용)
+const HEADER = ['주종', '한글명', '영문명', '카테고리', '구매일자', '구매상점', '구매금액', '구매횟수', '최저가(시점·상점)', '평균가', '최고가(시점·상점)', '추천인', '추천이유', '사진URL', '비고']
+const LIQUOR_COL = 0 // A열(0-based) 주종
+const CATEGORY_COL = 3 // D열(0-based, 술유형 추가로 C→D 이동)
+const CATEGORY_VALUES = ['구매완료', '지인선물', '구매희망', '지인추천', '전문가추천']
 const norm = (s?: string | null) => (s ?? '').trim().toLowerCase()
 
 async function buildGrid(db: DB): Promise<string[][]> {
@@ -76,6 +78,7 @@ async function buildGrid(db: DB): Promise<string[][]> {
     const recReason = recos2.map((r) => r.reason).filter(Boolean).join(' / ')
 
     grid.push([
+      w.liquor || '',
       w.name_ko || w.name || '',
       w.name_en || '',
       category,
@@ -97,7 +100,7 @@ async function buildGrid(db: DB): Promise<string[][]> {
 
 export async function pullAdd(db: DB): Promise<number> {
   const sheet = await readWhiskySheet()
-  const rows = sheet.slice(1).filter((r) => (r[0] ?? '').trim() || (r[1] ?? '').trim())
+  const rows = sheet.slice(1).filter((r) => (r[1] ?? '').trim() || (r[2] ?? '').trim()) // 한글명/영문명 있는 행
   if (!rows.length) return 0
   const { data: existing } = await db.from('whisky').select('name, name_ko, name_en')
   const known = new Set<string>()
@@ -105,8 +108,9 @@ export async function pullAdd(db: DB): Promise<number> {
 
   let imported = 0
   for (const r of rows) {
-    const ko = (r[0] ?? '').trim()
-    const en = (r[1] ?? '').trim()
+    const sheetLiquor = (r[0] ?? '').trim() // A열 술유형
+    const ko = (r[1] ?? '').trim()
+    const en = (r[2] ?? '').trim()
     if ((ko && known.has(norm(ko))) || (en && known.has(norm(en)))) continue
     const info = await whiskyInfo(ko || en)
     const nk = ko || info.name_ko
@@ -115,7 +119,8 @@ export async function pullAdd(db: DB): Promise<number> {
     await db.from('whisky').upsert(
       {
         name: canon, name_ko: nk, name_en: ne,
-        image_url: (r[12] ?? '').trim() || null,
+        liquor: sheetLiquor || info.liquor, style: info.style,
+        image_url: (r[13] ?? '').trim() || null,
         type: info.type, distillery: info.distillery, abv: info.abv,
         description: info.description, nose: info.nose, palate: info.palate, finish: info.finish,
         aroma: info.aroma, flavour: info.flavour, evaluation: info.evaluation,
@@ -130,12 +135,12 @@ export async function pullAdd(db: DB): Promise<number> {
 
 export async function deleteMirror(db: DB): Promise<number> {
   const sheet = await readWhiskySheet()
-  const rows = sheet.slice(1).filter((r) => (r[0] ?? '').trim() || (r[1] ?? '').trim())
+  const rows = sheet.slice(1).filter((r) => (r[1] ?? '').trim() || (r[2] ?? '').trim())
   if (!rows.length) return 0 // 가드: 빈 시트로는 DB를 지우지 않음(전체 삭제는 webapp에서)
   const keys = new Set<string>()
   for (const r of rows) {
-    const ko = (r[0] ?? '').trim()
-    const en = (r[1] ?? '').trim()
+    const ko = (r[1] ?? '').trim() // 한글명(A=술유형 추가로 B열)
+    const en = (r[2] ?? '').trim() // 영문명(C열)
     if (ko) keys.add(norm(ko))
     if (en) keys.add(norm(en))
   }
@@ -160,7 +165,8 @@ export async function fullSync(db: DB): Promise<{ imported: number; deleted: num
   const imported = await pullAdd(db)
   const deleted = await deleteMirror(db)
   const exported = await pushMirror(db)
-  await ensureCategoryDropdown(CATEGORY_COL).catch(() => {}) // 카테고리 드롭다운 유지
+  // 술유형(A)·카테고리(D) 드롭다운 유지(컬럼 이동 대비 전체 초기화 후 재적용)
+  await ensureMetaDropdowns([{ colIndex: LIQUOR_COL, values: [...LIQUORS] }, { colIndex: CATEGORY_COL, values: CATEGORY_VALUES }]).catch(() => {})
   return { imported, deleted, exported }
 }
 

@@ -8,6 +8,7 @@ const NAV = [
   { href: '/', label: '대시보드' },
   { href: '/whisky', label: '🍶 주류 노트' },
   { href: '/ranking', label: '🏆 순위' },
+  { href: '/accessory', label: '🍷 액세서리' },
   { href: '/glossary', label: '📖 용어사전' },
 ]
 

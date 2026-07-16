@@ -93,6 +93,41 @@ export async function whiskyInfo(input: string): Promise<WhiskyInfo> {
   }
 }
 
+// 주류 액세서리 분류(등록·필터 공통)
+export const ACCESSORY_CATEGORIES = ['글라스', '디캔터', '바도구', '보관·제빙', '기타'] as const
+export type AccessoryInfo = { category: string | null; brand: string | null; description: string | null }
+
+// 액세서리명 → 분류·브랜드·설명 자동 추정(best-effort)
+export async function accessoryInfo(input: string): Promise<AccessoryInfo> {
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) return { category: null, brand: null, description: null }
+  try {
+    const client = new Anthropic({ apiKey })
+    const msg = await client.messages.create({
+      model: 'claude-sonnet-5',
+      max_tokens: 500,
+      messages: [
+        {
+          role: 'user',
+          content:
+            `주류 액세서리 "${input}"에 대한 정보를 JSON 하나로만 출력(설명·코드펜스 금지, 한국어).\n` +
+            `{"category": 분류(반드시 다음 중 하나: 글라스/디캔터/바도구/보관·제빙/기타), "brand": 브랜드(모르면 null), "description": 용도·특징 1~2문장}\n` +
+            `위스키잔·와인잔·소주잔·글렌캐런 등은 글라스. 지거·바스푼·머들러·스트레이너 등은 바도구. 아이스볼몰드·와인셀러 등은 보관·제빙. 기네스 나이트로 서지 같은 기기는 바도구.`,
+        },
+      ],
+    })
+    const b = msg.content.find((x) => x.type === 'text')
+    const t = b && b.type === 'text' ? b.text : ''
+    const m = t.match(/\{[\s\S]*\}/)
+    if (!m) return { category: null, brand: null, description: null }
+    const p = JSON.parse(m[0]) as Record<string, unknown>
+    const s = (v: unknown) => { const x = (v == null ? '' : String(v)).trim(); return x || null }
+    return { category: s(p.category), brand: s(p.brand), description: s(p.description) }
+  } catch {
+    return { category: null, brand: null, description: null }
+  }
+}
+
 export type ExtractedTerm = { term: string; term_en: string | null; category: string | null; definition: string | null }
 
 // 자막/텍스트에서 위스키 용어 추출

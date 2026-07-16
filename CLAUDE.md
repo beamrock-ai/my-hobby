@@ -46,11 +46,12 @@
 - **등록 시 카테고리 동시 선택**: 등록 폼에 카테고리 드롭다운(미지정/구매완료/지인선물/구매희망/지인추천/전문가추천) + 선택 시 세부 입력칸 노출(구매완료=일자〔미입력 시 오늘〕·상점·가격 / 지인선물=선물한 지인(필수)·메모 / 구매희망=가능상점·메모 / 추천=지인명·출처(필수)·이유). 등록 시 위스키 생성 후 해당 관계 API(`/api/{purchase,wishlist,recommendation}`, 지인선물=recommendation kind='gift') 자동 호출. 추천·선물은 이름 미입력 시 사전 검증 알림. 카드 `＋기록 추가`로도 추가 가능.
 - **카테고리 우선순위(시트 단일 카테고리·뱃지)**: 구매완료 > 지인선물 > 구매희망 > 지인추천 > 전문가추천. 시트 C열 드롭다운(`ensureCategoryDropdown`)에 지인선물 포함.
 - **테이스팅 노트 상세** `/whisky/[id]`: 템플릿 레이아웃(정보=종류·증류소·도수·가격·상점 / 감각=색·향(Nose)·맛(Palate)·향(Aroma)·맛(Flavour) 8축 레이더·피니시 / 종합 / 개인노트). 등록 시 **Claude(sonnet-5)가 종류·증류소·도수·향/맛/피니시·aroma/flavour 8축 프로파일(0~4)·설명·평가를 자동 생성**(`src/lib/translate.ts whiskyInfo`). 필드 편집 저장 + `🔄 프로필 재생성`(PATCH `/api/whisky/[id]` GET/PATCH). 레이더는 무의존 SVG(`components/WhiskyRadar.tsx`). 컬럼: `type,distillery,abv,nose,palate,finish,aroma,flavour,description,evaluation`(자동) + `color,rating,personal_note,tasted_on`(개인).
-- **구글시트 양방향 실시간 동기화** (시트=뷰, 위스키명 PK): 스프레드시트 `HOBBY_WHISKY_SHEET_ID`(1ud13QG5…)의 `위스키` 탭, SA `bookkeeping-sheets-sa.json`(GOOGLE_SA_KEY_PATH). 동기화 모듈 `src/lib/{sheets,whisky-sync}.ts`.
+- **구글시트 양방향 실시간 동기화** (시트=뷰, 위스키명 PK): 스프레드시트 `HOBBY_WHISKY_SHEET_ID`(1ud13QG5…)의 **`주류메타` 탭**(구 `위스키`, 2026-07-13 리네임 → `sheets.ts TAB`), SA `bookkeeping-sheets-sa.json`(GOOGLE_SA_KEY_PATH). 동기화 모듈 `src/lib/{sheets,whisky-sync}.ts`.
+  - **`주류시세` 탭**(gid 1014777612): 일자별 주류 가격 관측 소스(→ `price_observation` 적재용, 최저/평균/최고가 계산에 반영 예정). 스키마 A~I: `한글명`(필수, 주류메타 PK 매칭)·`판매점`(필수)·`가격`(필수,원)·`기준일자`(필수,YYYY-MM-DD)·`용량ml`(추천,가격정규화)·`주종`(추천)·`영문명`(추천,매칭보조)·`링크`(추천,출처)·`비고`(추천,프로모션/면세 등). `sheets.ts PRICE_TAB`.
   - **webapp→시트(push)**: 모든 변경 API(whisky·purchase·wishlist·recommendation·price-observation POST/DELETE) 처리 후 `pushMirrorSafe()`로 DB 전체를 시트에 즉시 미러.
   - **시트→webapp(pull)**: `GET /api/whisky`(페이지 로드)마다 `pullAdd()`로 시트에 수동추가된 위스키명(한/영)을 DB에 추가(부족 언어 자동변환).
   - **삭제 미러**: `POST /api/whisky/sync`(=fullSync: pullAdd+deleteMirror+pushMirror)가 시트에서 지운 행을 DB에서도 삭제(빈 시트 가드: 전체비움으론 삭제 안 함). `/whisky`의 `🔄 시트 동기화` 버튼 + **systemd 타이머 `my-hobby-whisky-sync.timer`(10분 주기)**가 호출.
-  - 시트 컬럼(A~N): 한글명·영문명·**카테고리(드롭다운:구매완료/구매희망/지인추천/전문가추천)**·구매일자·구매상점·구매금액·구매횟수·**최저가(시점·상점)**·평균가·**최고가(시점·상점)**·추천인·추천이유·사진URL·비고. 구매 일자/상점/금액은 **분리 컬럼(필터용)**·위스키당 최근 1건 표시(구매횟수로 총계). 최저/평균/최고가는 **구매가격+시세(price_observation) 합산**으로 계산(뷰 `whisky_stats`, 1건이라도 있으면 산출), 최저/최고는 해당 데이터의 시점·상점 병기. 카테고리는 단일값=우선순위 대표(구매완료>구매희망>지인추천>전문가추천), Sheets API `setDataValidation`으로 C열 드롭다운(fullSync마다 재적용, `ensureCategoryDropdown`). 최저/최고가=해당 price_observation 관측 시점·상점 병기. 파생값은 DB→시트 단방향. 위스키명 리네임 금지.
+  - 시트 컬럼(A~O, 2026-07-13 맨 앞에 주종 추가): **주종(A, 드롭다운=LIQUORS 14종, ↔`whisky.liquor`)**·한글명(B)·영문명(C)·**카테고리(D, 드롭다운:구매완료/지인선물/구매희망/지인추천/전문가추천)**·구매일자·구매상점·구매금액·구매횟수·**최저가(시점·상점)**·평균가·**최고가(시점·상점)**·추천인·추천이유·사진URL·비고. 컬럼 이동 대비 `ensureMetaDropdowns`가 A~O 검증 초기화 후 주종(A)·카테고리(D) 드롭다운 재적용. pullAdd는 A열 주종을 `liquor`로 반영(양방향). 구매 일자/상점/금액은 **분리 컬럼(필터용)**·위스키당 최근 1건 표시(구매횟수로 총계). 최저/평균/최고가는 **구매가격+시세(price_observation) 합산**으로 계산(뷰 `whisky_stats`, 1건이라도 있으면 산출), 최저/최고는 해당 데이터의 시점·상점 병기. 카테고리는 단일값=우선순위 대표(구매완료>구매희망>지인추천>전문가추천), Sheets API `setDataValidation`으로 C열 드롭다운(fullSync마다 재적용, `ensureCategoryDropdown`). 최저/최고가=해당 price_observation 관측 시점·상점 병기. 파생값은 DB→시트 단방향. 위스키명 리네임 금지.
 
 ## 순위(랭킹) `/ranking` (2026-07-13)
 
@@ -59,6 +60,14 @@
 - API `GET /api/ranking`: whisky + whisky_profile 조인, 위스키별 neat/rocks/highball 평균(값>0만) + rating(=세 평균의 평균) + ratingCount 반환.
 - UI: 지표 탭(평점/니트/온더락/하이볼) + 주종 필터(2종 이상일 때) + 내림차순 목록(1·2·3위 색상, 아이콘 평점행+수치, 위스키 노트 링크). 점수 없는 항목은 제외. **동점=같은 순위(표준 경쟁 순위: 자기보다 높은 점수 개수+1, 예 5·5·4 → 1·1·3위)**.
 - 홈 카드 🏆 순위 · Sidebar `🏆 순위` 등록.
+
+## 액세서리 `/accessory` (2026-07-13)
+
+- 주류 관련 물품(잔·디캔터·바도구 등) 등록·관리. 테이블 `hobby.accessory`(name·category·brand·status·price·shop·description·memo·image_url). 마이그레이션 `20260713030000_accessory.sql`(service_role/anon GRANT 포함).
+- 분류(category): 글라스/디캔터/바도구/보관·제빙/기타. 상태(status): 보유/구매희망.
+- **등록 시 분류·브랜드·설명 미입력이면 Claude(sonnet-5) `accessoryInfo`가 자동 보완**(`src/lib/translate.ts`). 예: "글렌캐런 위스키잔"→글라스/Glencairn, "기네스 나이트로 서지"→바도구.
+- API: `GET/POST/DELETE /api/accessory`(POST multipart, 이미지 uploadImage→whisky 버킷 재사용), `PATCH /api/accessory/[id]`(JSON 텍스트필드 편집 / multipart 이미지 교체).
+- UI: 등록폼(품목명+분류·상태·브랜드·가격·구매처·사진) + 필터(검색·분류·상태) + 카드(이미지 라이트박스·뱃지·인라인 수정/삭제). 홈 카드 🍷 액세서리 · Sidebar `🍷 액세서리`.
 
 ## 현황 / TODO
 
