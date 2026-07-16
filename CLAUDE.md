@@ -1,24 +1,24 @@
-# my-hobby 프로젝트 현황
+# my-bar 프로젝트 현황
 
 > 취미 기록·관리 webapp. 2026-07-12 신설. **my-health webapp 레이아웃 기반 스캐폴딩**(셸만 복제, 건강 기능 제거).
 
 ## 개요
 
-- 운영: **https://beamrock.duckdns.org/my-hobby**
+- 운영: **https://beamrock.duckdns.org/my-bar**
 - 스택: Next.js 16.2.3 (App Router, standalone) · React 19 · Tailwind · (Supabase/Anthropic/Telegram 의존성은 my-health에서 승계, 현재 미사용)
-- basePath: `/my-hobby` (`NEXT_PUBLIC_BASE_PATH`, `deploy/vm01/env.production`)
+- basePath: `/my-bar` (`NEXT_PUBLIC_BASE_PATH`, `deploy/vm01/env.production`)
 
 ## 배포 (VM)
 
-- systemd 서비스 **`my-hobby-next`** (`/etc/systemd/system/my-hobby-next.service`, enable=부팅 자동기동)
+- systemd 서비스 **`my-bar-next`** (`/etc/systemd/system/my-bar-next.service`, enable=부팅 자동기동)
 - 포트 **3003** (`PORT`, env.production)
-- nginx: `/etc/nginx/sites-available/beamrock.duckdns.org` 의 `location /my-hobby` → `127.0.0.1:3003`
+- nginx: `/etc/nginx/sites-available/beamrock.duckdns.org` 의 `location /my-bar` → `127.0.0.1:3003`
 - 홈페이지: `/var/www/beamrock/index.html` 에 취미 카드(🎨) 등록
 - 배포 절차:
   ```bash
-  cd /home/beamrock/claude-code-beamrock/projects/my-hobby
+  cd /home/beamrock/claude-code-beamrock/projects/my-bar
   bash scripts/build_standalone.sh
-  sudo systemctl restart my-hobby-next
+  sudo systemctl restart my-bar-next
   ```
 
 ## 구조 (셸)
@@ -50,7 +50,7 @@
   - **`주류시세` 탭**(gid 1014777612): 일자별 주류 가격 관측 소스(→ `price_observation` 적재용, 최저/평균/최고가 계산에 반영 예정). 스키마 A~I: `한글명`(필수, 주류메타 PK 매칭)·`판매점`(필수)·`가격`(필수,원)·`기준일자`(필수,YYYY-MM-DD)·`용량ml`(추천,가격정규화)·`주종`(추천)·`영문명`(추천,매칭보조)·`링크`(추천,출처)·`비고`(추천,프로모션/면세 등). `sheets.ts PRICE_TAB`.
   - **webapp→시트(push)**: 모든 변경 API(whisky·purchase·wishlist·recommendation·price-observation POST/DELETE) 처리 후 `pushMirrorSafe()`로 DB 전체를 시트에 즉시 미러.
   - **시트→webapp(pull)**: `GET /api/whisky`(페이지 로드)마다 `pullAdd()`로 시트에 수동추가된 위스키명(한/영)을 DB에 추가(부족 언어 자동변환).
-  - **삭제 미러**: `POST /api/whisky/sync`(=fullSync: pullAdd+deleteMirror+pushMirror)가 시트에서 지운 행을 DB에서도 삭제(빈 시트 가드: 전체비움으론 삭제 안 함). `/whisky`의 `🔄 시트 동기화` 버튼 + **systemd 타이머 `my-hobby-whisky-sync.timer`(10분 주기)**가 호출.
+  - **삭제 미러**: `POST /api/whisky/sync`(=fullSync: pullAdd+deleteMirror+pushMirror)가 시트에서 지운 행을 DB에서도 삭제(빈 시트 가드: 전체비움으론 삭제 안 함). `/whisky`의 `🔄 시트 동기화` 버튼 + **systemd 타이머 `my-bar-whisky-sync.timer`(10분 주기)**가 호출.
   - 시트 컬럼(A~O, 2026-07-13 맨 앞에 주종 추가): **주종(A, 드롭다운=LIQUORS 14종, ↔`whisky.liquor`)**·한글명(B)·영문명(C)·**카테고리(D, 드롭다운:구매완료/지인선물/구매희망/지인추천/전문가추천)**·구매일자·구매상점·구매금액·구매횟수·**최저가(시점·상점)**·평균가·**최고가(시점·상점)**·추천인·추천이유·사진URL·비고. 컬럼 이동 대비 `ensureMetaDropdowns`가 A~O 검증 초기화 후 주종(A)·카테고리(D) 드롭다운 재적용. pullAdd는 A열 주종을 `liquor`로 반영(양방향). 구매 일자/상점/금액은 **분리 컬럼(필터용)**·위스키당 최근 1건 표시(구매횟수로 총계). 최저/평균/최고가는 **구매가격+시세(price_observation) 합산**으로 계산(뷰 `whisky_stats`, 1건이라도 있으면 산출), 최저/최고는 해당 데이터의 시점·상점 병기. 카테고리는 단일값=우선순위 대표(구매완료>구매희망>지인추천>전문가추천), Sheets API `setDataValidation`으로 C열 드롭다운(fullSync마다 재적용, `ensureCategoryDropdown`). 최저/최고가=해당 price_observation 관측 시점·상점 병기. 파생값은 DB→시트 단방향. 위스키명 리네임 금지.
 
 ## 순위(랭킹) `/ranking` (2026-07-13)

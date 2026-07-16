@@ -1,5 +1,5 @@
 [Unit]
-Description=my-hobby 위스키 시트 동기화 주기 실행(10분)
+Description=my-bar 주류 시트 동기화 주기 실행(10분)
 
 [Timer]
 OnBootSec=3min

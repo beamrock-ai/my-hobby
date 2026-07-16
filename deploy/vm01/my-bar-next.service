@@ -1,14 +1,14 @@
 [Unit]
-Description=My Hobby Next.js
+Description=My Bar Next.js
 After=network-online.target my-bookkeeping-supabase.service
 Wants=network-online.target
 
 [Service]
 Type=simple
 User=beamrock
-WorkingDirectory=/home/beamrock/claude-code-beamrock/projects/my-hobby
+WorkingDirectory=/home/beamrock/claude-code-beamrock/projects/my-bar
 Environment=HOME=/home/beamrock
-EnvironmentFile=/home/beamrock/claude-code-beamrock/projects/my-hobby/deploy/vm01/env.production
+EnvironmentFile=/home/beamrock/claude-code-beamrock/projects/my-bar/deploy/vm01/env.production
 ExecStart=/usr/bin/node .next/standalone/server.js
 Restart=always
 RestartSec=5
