@@ -31,6 +31,9 @@ export default function WhiskyPage() {
   const [style, setStyle] = useState('') // 등록 시 구분 지정('' = AI 자동)
   const [cat, setCat] = useState('') // 등록 시 카테고리('' = 미지정 / buy / wish / friend / expert)
   const [catForm, setCatForm] = useState<Record<string, string>>({}) // 카테고리 세부입력
+  const [catalog, setCatalog] = useState<{ name: string; liquor: string; style: string; cask: string; peat: string; priceMin: number | null }[]>([])
+  const [price, setPrice] = useState('') // 신규 술: 시세 등록가(선택)
+  const [shop, setShop] = useState('')   // 신규 술: 판매점(선택)
   const [file, setFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [syncing, setSyncing] = useState(false)
@@ -46,6 +49,8 @@ export default function WhiskyPage() {
     setData(await res.json())
   }, [])
   useEffect(() => { void load() }, [load])
+  // 시세 카탈로그(등록 시 선택용)
+  useEffect(() => { void (async () => { const r = await fetch(`${BP}/api/catalog`); setCatalog((await r.json()).catalog ?? []) })() }, [])
 
   // 공통 JSON 액션 (구매/희망/추천/시세/삭제)
   const post = async (path: string, body: unknown, method = 'POST') => {
@@ -70,10 +75,13 @@ export default function WhiskyPage() {
       fd.append('name', name.trim())
       if (liquor) fd.append('liquor', liquor)
       if (style) fd.append('style', style)
+      if (price.trim()) fd.append('price', price.trim())
+      if (shop.trim()) fd.append('shop', shop.trim())
       if (file) fd.append('image', file)
       const res = await fetch(`${BP}/api/whisky`, { method: 'POST', body: fd })
       if (!res.ok) { alert((await res.json()).error ?? '오류'); return }
-      const created = await res.json() as { id?: string }
+      const created = await res.json() as { id?: string; addedToCatalog?: boolean }
+      if (created?.addedToCatalog) alert('새 술이라 시세(주류시세)에도 등록했어요.')
       // 선택한 카테고리 관계 생성
       if (cat && created?.id) {
         const wid = created.id
@@ -84,7 +92,7 @@ export default function WhiskyPage() {
         else cres = await fetch(`${BP}/api/recommendation`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ whisky_id: wid, kind: cat, name: catForm.name, reason: catForm.reason }) })
         if (cres && !cres.ok) alert('위스키는 등록됐지만 카테고리 저장 실패: ' + ((await cres.json()).error ?? ''))
       }
-      setName(''); setLiquor(''); setStyle(''); setCat(''); setCatForm({}); setFile(null); await load()
+      setName(''); setLiquor(''); setStyle(''); setPrice(''); setShop(''); setCat(''); setCatForm({}); setFile(null); await load()
     } finally { setBusy(false) }
   }
   const setCf = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) => setCatForm(p => ({ ...p, [k]: e.target.value }))
@@ -131,11 +139,16 @@ export default function WhiskyPage() {
   })
   const filterOn = !!(qName.trim() || fLiquor || fStyle || fCat)
 
+  // 등록: 시세 카탈로그 매칭
+  const nm = name.trim()
+  const catHit = nm ? catalog.find(c => c.name === nm) : undefined
+  const isNew = !!nm && !catHit
+
   return (
     <div className="mx-auto max-w-3xl">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-semibold text-neutral-900">🍶 주류 노트</h1>
+          <h1 className="text-2xl font-semibold text-neutral-900">🍶 노트</h1>
           <p className="mt-1 text-sm text-neutral-500">위스키 · 보드카 · 리큐르 · 막걸리 등 · 구매완료/구매희망/지인·전문가추천 (시세 자동 수집·계산)</p>
         </div>
         <button
@@ -150,18 +163,36 @@ export default function WhiskyPage() {
       <div className="mt-5 space-y-2">
         <div className="flex gap-2">
           <input
+            list="catalog-names"
             value={name} onChange={e => setName(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') void createWhisky() }}
-            placeholder="주류명 등록 (예: 발베니 12년 더블우드, 그레이구스 보드카)"
+            placeholder="주류명 — 시세에서 선택하거나 새로 입력"
             className="flex-1 rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
           />
+          <datalist id="catalog-names">
+            {catalog.map(c => <option key={c.name} value={c.name} />)}
+          </datalist>
           <button
             onClick={createWhisky}
             disabled={busy || !name.trim()}
             className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
           >등록</button>
         </div>
+        {/* 카탈로그 매칭 상태 */}
+        {catHit && (
+          <div className="flex flex-wrap items-center gap-1.5 rounded-md bg-emerald-50 px-2.5 py-1.5 text-xs text-emerald-700">
+            <span className="font-medium">✓ 시세 카탈로그</span>
+            <span className="text-emerald-600">— 주종·구분·캐스크·피트 자동 적용:</span>
+            {[catHit.liquor, catHit.style, catHit.cask, catHit.peat].filter(Boolean).map((v, i) => <span key={i} className="rounded bg-white px-1.5 py-0.5">{v}</span>)}
+            {catHit.priceMin != null && <span className="text-emerald-500">· 최저 {won(catHit.priceMin)}</span>}
+          </div>
+        )}
+        {isNew && (
+          <div className="rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-700">🆕 새 항목 — 아래 가격을 입력하면 시세(주류시세)에도 함께 등록됩니다(선택).</div>
+        )}
         <div className="flex flex-wrap items-center gap-2">
+          {/* 카탈로그에 없을 때만 주종·구분 수동/AI + 시세가격 입력 */}
+          {!catHit && <>
           <select
             value={liquor} onChange={e => setLiquor(e.target.value)}
             title="주종(미선택 시 AI 자동 판별)"
@@ -178,6 +209,11 @@ export default function WhiskyPage() {
             <option value="">구분: AI 자동</option>
             {STYLES.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
+          <input value={price} onChange={e => setPrice(e.target.value)} type="number" placeholder="가격(선택)"
+            className="w-24 rounded-md border border-neutral-300 px-2 py-1.5 text-xs" />
+          <input value={shop} onChange={e => setShop(e.target.value)} placeholder="판매점(선택)"
+            className="w-28 rounded-md border border-neutral-300 px-2 py-1.5 text-xs" />
+          </>}
           <select
             value={cat} onChange={e => { setCat(e.target.value); setCatForm({}) }}
             title="카테고리(선택 시 함께 등록)"

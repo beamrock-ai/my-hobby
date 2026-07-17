@@ -11,10 +11,11 @@ const BP = process.env.NEXT_PUBLIC_BASE_PATH ?? ''
 type Radar = Record<string, number>
 type Whisky = {
   id: string; name_ko: string | null; name_en: string | null; image_url: string | null
-  liquor: string | null; type: string | null; style: string | null; distillery: string | null; abv: number | null; description: string | null
+  liquor: string | null; type: string | null; style: string | null; cask: string | null; peat: string | null; distillery: string | null; abv: number | null; description: string | null
 }
 const LIQUORS = ['위스키', '보드카', '진', '럼', '데킬라', '브랜디', '리큐르', '사케', '막걸리', '소주', '전통주', '와인', '맥주', '기타']
 const STYLES = ['싱글몰트', '블렌디드', '블렌디드몰트', '싱글그레인', '버번', '라이', '기타']
+const PEATS = ['논피트', '피트']
 type Profile = {
   id: string; author: string
   nose: string | null; palate: string | null; finish: string | null
@@ -50,7 +51,7 @@ export default function WhiskyDetail() {
   const [saving, setSaving] = useState(false)
   const [regen, setRegen] = useState(false)
   const [pForm, setPForm] = useState({ date: '', shop: '', price: '' })
-  const [oForm, setOForm] = useState({ shop: '', price: '' })
+  const [oForm, setOForm] = useState({ shop: '', price: '', volume: '', url: '' })
   const [adding, setAdding] = useState(false)
   const activeIdRef = useRef('')
   useEffect(() => { activeIdRef.current = activeId }, [activeId])
@@ -83,7 +84,7 @@ export default function WhiskyDetail() {
     setSaving(true)
     try {
       await fetch(`${BP}/api/whisky/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
-        name_ko: w.name_ko, name_en: w.name_en, liquor: w.liquor, type: w.type, style: w.style, distillery: w.distillery,
+        name_ko: w.name_ko, name_en: w.name_en, liquor: w.liquor, type: w.type, style: w.style, cask: w.cask, peat: w.peat, distillery: w.distillery,
         abv: abvStr.trim() ? Number(abvStr.replace(/[^0-9.]/g, '')) : null, description: w.description,
       }) })
       if (p) {
@@ -134,7 +135,7 @@ export default function WhiskyDetail() {
   const addObs = async () => {
     if (!oForm.price) { alert('가격을 입력하세요'); return }
     setAdding(true)
-    try { await fetch(`${BP}/api/price-observation`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ whisky_id: id, shop_name: oForm.shop, price: oForm.price }) }); setOForm({ shop: '', price: '' }); await reloadObjective() } finally { setAdding(false) }
+    try { await fetch(`${BP}/api/price-observation`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ whisky_id: id, shop_name: oForm.shop, price: oForm.price, volume_ml: oForm.volume, url: oForm.url }) }); setOForm({ shop: '', price: '', volume: '', url: '' }); await reloadObjective() } finally { setAdding(false) }
   }
   const delObs = async (oid: string) => { await fetch(`${BP}/api/price-observation`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: oid }) }); await reloadObjective() }
   const uploadImg = async (file: File) => { const fd = new FormData(); fd.append('image', file); setAdding(true); try { await fetch(`${BP}/api/whisky/${id}/image`, { method: 'POST', body: fd }); await reloadObjective() } finally { setAdding(false) } }
@@ -236,6 +237,14 @@ export default function WhiskyDetail() {
                 {STYLES.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </Row>
+            <Row label="캐스크"><Edit value={w.cask} onChange={(v) => updateW({ cask: v })} ph="버번캐스크·쉐리캐스크 등" /></Row>
+            <Row label="피트">
+              <select value={w.peat ?? ''} onChange={(e) => updateW({ peat: e.target.value || null })}
+                className="w-full rounded-md border border-neutral-200 bg-white px-2 py-1 text-sm text-neutral-800 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400">
+                <option value="">(미지정)</option>
+                {PEATS.map((p) => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </Row>
             <Row label="증류소"><Edit value={w.distillery} onChange={(v) => updateW({ distillery: v })} ph="증류소·지역" /></Row>
             <Row label="이름">
               <div className="flex flex-col gap-1">
@@ -257,6 +266,8 @@ export default function WhiskyDetail() {
           <span className="text-[11px] font-medium text-amber-700/70">＋ 시세</span>
           <input value={oForm.shop} onChange={(e) => setOForm({ ...oForm, shop: e.target.value })} placeholder="상점" className="w-24 rounded border border-neutral-200 px-2 py-1" />
           <input value={oForm.price} onChange={(e) => setOForm({ ...oForm, price: e.target.value })} placeholder="가격" type="number" className="w-24 rounded border border-neutral-200 px-2 py-1" />
+          <input value={oForm.volume} onChange={(e) => setOForm({ ...oForm, volume: e.target.value })} placeholder="용량ml" type="number" className="w-20 rounded border border-neutral-200 px-2 py-1" />
+          <input value={oForm.url} onChange={(e) => setOForm({ ...oForm, url: e.target.value })} placeholder="링크(선택)" className="w-28 rounded border border-neutral-200 px-2 py-1" />
           <button onClick={addObs} disabled={adding} className="rounded bg-neutral-700 px-2.5 py-1 text-white hover:bg-neutral-800 disabled:opacity-50">추가</button>
         </div>
         {obs.length > 0 && (

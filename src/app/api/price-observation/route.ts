@@ -17,25 +17,30 @@ export async function GET(req: Request) {
 // body: { whisky_id, items: [{ shop_name, price, source?, observed_on? }] } 또는 단건 필드
 export async function POST(req: Request) {
   const db = createServiceClient()
+  type Item = { shop_name?: string; price: number | string; source?: string; observed_on?: string; volume_ml?: number | string; url?: string; memo?: string }
   const body = (await req.json()) as {
     whisky_id?: string
-    items?: { shop_name?: string; price: number | string; source?: string; observed_on?: string }[]
-    shop_name?: string; price?: number | string; source?: string; observed_on?: string
+    items?: Item[]
+    shop_name?: string; price?: number | string; source?: string; observed_on?: string; volume_ml?: number | string; url?: string; memo?: string
   }
   if (!body.whisky_id) return NextResponse.json({ error: 'whisky_id required' }, { status: 400 })
-  const items = body.items ?? [{ shop_name: body.shop_name, price: body.price!, source: body.source, observed_on: body.observed_on }]
+  const items: Item[] = body.items ?? [{ shop_name: body.shop_name, price: body.price!, source: body.source, observed_on: body.observed_on, volume_ml: body.volume_ml, url: body.url, memo: body.memo }]
 
   const rows: Record<string, unknown>[] = []
   for (const it of items) {
     const priceInt = parseInt(String(it.price ?? '').replace(/[^0-9-]/g, ''))
     if (!priceInt) continue
     const shop_id = await getOrCreateShop(db, it.shop_name)
+    const vol = it.volume_ml != null && String(it.volume_ml).trim() !== '' ? parseInt(String(it.volume_ml).replace(/[^0-9]/g, '')) : null
     rows.push({
       whisky_id: body.whisky_id,
       shop_id,
       price: priceInt,
       source: it.source ?? null,
       observed_on: it.observed_on ?? new Date().toISOString().slice(0, 10),
+      volume_ml: vol,
+      url: (it.url ?? '').trim() || null,
+      memo: (it.memo ?? '').trim() || null,
     })
   }
   if (!rows.length) return NextResponse.json({ error: '유효한 가격 없음' }, { status: 400 })

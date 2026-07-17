@@ -12,6 +12,8 @@ export type WhiskyInfo = {
   liquor: string | null
   type: string | null
   style: string | null
+  cask: string | null
+  peat: string | null
   distillery: string | null
   abv: number | null
   description: string | null
@@ -24,7 +26,7 @@ export type WhiskyInfo = {
 }
 
 const EMPTY: WhiskyInfo = {
-  name_ko: null, name_en: null, liquor: null, type: null, style: null, distillery: null, abv: null,
+  name_ko: null, name_en: null, liquor: null, type: null, style: null, cask: null, peat: null, distillery: null, abv: null,
   description: null, nose: null, palate: null, finish: null, aroma: null, flavour: null, evaluation: null,
 }
 
@@ -58,6 +60,8 @@ export async function whiskyInfo(input: string): Promise<WhiskyInfo> {
             `"liquor": 주종(반드시 다음 중 하나: 위스키/보드카/진/럼/데킬라/브랜디/리큐르/사케/막걸리/소주/전통주/와인/맥주/기타),\n` +
             `"type": 세부 종류(예: 싱글몰트 스카치, 아일라 진, 아마로),\n` +
             `"style": 위스키 세부구분(위스키일 때만 다음 중 하나: 싱글몰트/블렌디드/블렌디드몰트/싱글그레인/버번/라이/기타, 위스키가 아니면 "해당없음"),\n` +
+            `"cask": 캐스크 숙성(예: 버번캐스크/쉐리캐스크/포트캐스크/버진오크/복합, 위스키가 아니면 "해당없음"),\n` +
+            `"peat": 피트 여부(위스키면 "피트" 또는 "논피트", 위스키가 아니면 "해당없음"),\n` +
             `"distillery": 증류소/양조장·지역(예: 아드벡, 아일라, 스코틀랜드), "abv": 도수 숫자만(%),\n` +
             `"description": 기본 설명 2~3문장,\n` +
             `"nose": 향, "palate": 맛(입안), "finish": 피니시(여운),\n` +
@@ -83,7 +87,9 @@ export async function whiskyInfo(input: string): Promise<WhiskyInfo> {
     }
     return {
       name_ko: s(p.name_ko), name_en: s(p.name_en), liquor: s(p.liquor),
-      type: s(p.type), style: s(p.style) === '해당없음' ? null : s(p.style), distillery: s(p.distillery), abv: num(p.abv),
+      type: s(p.type), style: s(p.style) === '해당없음' ? null : s(p.style),
+      cask: s(p.cask) === '해당없음' ? null : s(p.cask), peat: s(p.peat) === '해당없음' ? null : s(p.peat),
+      distillery: s(p.distillery), abv: num(p.abv),
       description: s(p.description), nose: s(p.nose), palate: s(p.palate), finish: s(p.finish),
       aroma: toRadar(p.aroma), flavour: toRadar(p.flavour),
       evaluation: s(p.evaluation),

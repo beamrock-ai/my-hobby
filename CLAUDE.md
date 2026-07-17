@@ -40,6 +40,13 @@
 - **주류 전반으로 확대(2026-07-13)**: 위스키뿐 아니라 보드카·리큐르·막걸리 등 전체 주류. 페이지 타이틀 `🥃 위스키`→**`🍶 주류 노트`**(홈 카드·Sidebar·상세 h1 "테이스팅 노트"로 통일). `whiskyInfo` LLM 프롬프트도 "주류(술)" 대상으로 일반화. (내부 경로/테이블명 `whisky`·`/whisky`는 유지)
 - **주종(`liquor`)**: `hobby.whisky.liquor`(최상위 분류: 위스키/보드카/진/럼/데킬라/브랜디/리큐르/사케/막걸리/소주/전통주/와인/맥주/기타). 등록 시 드롭다운(미선택=AI 자동판별) 또는 수동 지정(우선). 마이그레이션 `20260713010000_whisky_liquor.sql`(기존 6종 위스키 백필).
 - **위스키 구분(`style`)**: `hobby.whisky.style`(싱글몰트/블렌디드/블렌디드몰트/싱글그레인/버번/라이/기타, 위스키 세부스타일). 비위스키는 LLM이 "해당없음"→null 정규화. 등록 시 드롭다운(미선택=AI 자동판별) 또는 수동 지정. 마이그레이션 `20260713000000_whisky_style.sql`.
+- **캐스크·피트(2026-07-16)**: `hobby.whisky.cask`(버번캐스크/쉐리캐스크/포트캐스크/버진오크/복합 등)·`peat`(피트/논피트). whiskyInfo AI 자동생성(비위스키 "해당없음"→null), 상세페이지 정보섹션 편집(캐스크=Edit, 피트=드롭다운), `EDITABLE`·pullAdd upsert 포함. 마이그레이션 `20260716000000_...sql`.
+- **시세(price_observation) 확장(2026-07-16)**: `volume_ml`·`url`(링크)·`memo`(비고) 컬럼 추가. 상세페이지 `＋시세` 폼에 용량ml·링크 입력 추가. 주류시세 시트 임포트 대비.
+- **노트 등록 = 시세 카탈로그에서 선택(2026-07-17)**: 등록 폼 주류명이 **시세 카탈로그 콤보박스**(`GET /api/catalog` = 주류시세 시트 한글명별 대표 속성 678종, `lib/prices.ts getCatalog`). 동작:
+  - **카탈로그 선택**: 그 술의 주종·분류·캐스크·피트를 시트값으로 자동 적용, **이름(PK) 시세와 동일 유지**(AI 리네임 안 함), 시세 재등록 안 함. 초록 뱃지로 표시.
+  - **새 항목(카탈로그에 없음)**: AI 자동분류 + 주종/구분 수동선택 가능 + **가격·판매점 입력 시 → 주류시세 시트에 신규행 append**(`sheets.ts appendPriceRow`, 판매점=입력값/'직접입력'·기준일자=오늘·비고='주류노트 등록'). 가격 없으면 노트에만. 응답 `addedToCatalog`.
+  - 노트↔시세 PK(한글명) 동일 원칙 → 이름 클렌징이 전제(2026-07-16 1~4 완료).
+- **속성 일괄 채우기**: `POST /api/whisky/fill-attributes` — 등록된 주류 중 주종/구분/캐스크/피트가 **비어 있는 필드만** AI(whiskyInfo)로 채움(기존 값 미덮어씀). 재실행 안전(모두 찬 항목은 LLM 호출 스킵). 가향제품(잭다니엘 테네시 애플 등)은 캐스크/피트 N/A로 남을 수 있음(상세페이지 수동 지정 가능).
 - 상세페이지 정보 섹션에서 주종·구분 모두 편집(`EDITABLE`에 `liquor`,`style` 포함). 카드에 주종(indigo)·구분(gray) 뱃지.
 - **이름 편집(2026-07-13)**: 상세페이지 정보 섹션 `이름` Row가 한글명(`name_ko`)·영문명(`name_en`) 편집 입력(기존 읽기전용→편집). PATCH `/api/whisky/[id]`가 반영+`pushMirrorSafe`로 시트 한글명 갱신. 내부 PK `name`(canonical)은 동기화 안정성 위해 미변경(목록·랭킹·시트 모두 `name_ko` 우선 표시라 화면엔 새 이름 반영). 예: 듀어스 12년산→듀어스 12년.
 - **목록 필터(`/whisky`)**: ① 주류명 콤보박스(`<input list>`+`<datalist>`, 검색+선택, 이름 짤림 없음) ② 주종 드롭다운 ③ 구분 드롭다운(데이터에 존재하는 style만) ④ 카테고리 드롭다운(구매완료/구매희망/지인추천/전문가추천). 클라이언트 AND 필터, "N/전체개 표시" + 초기화 버튼.
@@ -47,7 +54,8 @@
 - **카테고리 우선순위(시트 단일 카테고리·뱃지)**: 구매완료 > 지인선물 > 구매희망 > 지인추천 > 전문가추천. 시트 C열 드롭다운(`ensureCategoryDropdown`)에 지인선물 포함.
 - **테이스팅 노트 상세** `/whisky/[id]`: 템플릿 레이아웃(정보=종류·증류소·도수·가격·상점 / 감각=색·향(Nose)·맛(Palate)·향(Aroma)·맛(Flavour) 8축 레이더·피니시 / 종합 / 개인노트). 등록 시 **Claude(sonnet-5)가 종류·증류소·도수·향/맛/피니시·aroma/flavour 8축 프로파일(0~4)·설명·평가를 자동 생성**(`src/lib/translate.ts whiskyInfo`). 필드 편집 저장 + `🔄 프로필 재생성`(PATCH `/api/whisky/[id]` GET/PATCH). 레이더는 무의존 SVG(`components/WhiskyRadar.tsx`). 컬럼: `type,distillery,abv,nose,palate,finish,aroma,flavour,description,evaluation`(자동) + `color,rating,personal_note,tasted_on`(개인).
 - **구글시트 양방향 실시간 동기화** (시트=뷰, 위스키명 PK): 스프레드시트 `HOBBY_WHISKY_SHEET_ID`(1ud13QG5…)의 **`주류메타` 탭**(구 `위스키`, 2026-07-13 리네임 → `sheets.ts TAB`), SA `bookkeeping-sheets-sa.json`(GOOGLE_SA_KEY_PATH). 동기화 모듈 `src/lib/{sheets,whisky-sync}.ts`.
-  - **`주류시세` 탭**(gid 1014777612): 일자별 주류 가격 관측 소스(→ `price_observation` 적재용, 최저/평균/최고가 계산에 반영 예정). 스키마 A~I: `한글명`(필수, 주류메타 PK 매칭)·`판매점`(필수)·`가격`(필수,원)·`기준일자`(필수,YYYY-MM-DD)·`용량ml`(추천,가격정규화)·`주종`(추천)·`영문명`(추천,매칭보조)·`링크`(추천,출처)·`비고`(추천,프로모션/면세 등). `sheets.ts PRICE_TAB`.
+  - **`주류시세` 탭**(gid 1014777612): 일자별 주류 가격 관측 소스(→ `price_observation` 적재용). 헤더 A~K(사용자 조정): `주종`(A)·`분류`(B,style)·`캐스크`(C)·`피트`(D)·`한글명`(E,주류메타 PK 매칭)·`판매점`(F)·`가격`(G,숫자서식)·`기준일자`(H)·`용량ml`(I)·`링크`(J)·`비고`(K). `sheets.ts PRICE_TAB`. 사용자가 유튜브 트레이더스 시세 영상 등에서 직접 다수 입력 중. **DB→시트 채우기 시 헤더명으로 매핑**(순서 변동 안전). 주류시세→DB 임포트(price_observation 적재)는 미구현(요청 시 추가).
+  - **`액세사리메타` 탭**(gid 1182531156, ↔`hobby.accessory`): 분류·품목명·브랜드·상태·가격·구매처·설명·사진URL·비고. **`액세사리시세` 탭**(gid 1945063728, ↔`hobby.accessory_price` accessory_id FK·shop·price·observed_on·spec·url·memo): 분류·품목명·판매점·가격·기준일자·규격·링크·비고. 2026-07-16 DB→시트 1회 채움(액세서리 8종 AI 자동분류 생성 + 참고시세 5건). 마이그레이션 `20260716000000_...sql`.
   - **webapp→시트(push)**: 모든 변경 API(whisky·purchase·wishlist·recommendation·price-observation POST/DELETE) 처리 후 `pushMirrorSafe()`로 DB 전체를 시트에 즉시 미러.
   - **시트→webapp(pull)**: `GET /api/whisky`(페이지 로드)마다 `pullAdd()`로 시트에 수동추가된 위스키명(한/영)을 DB에 추가(부족 언어 자동변환).
   - **삭제 미러**: `POST /api/whisky/sync`(=fullSync: pullAdd+deleteMirror+pushMirror)가 시트에서 지운 행을 DB에서도 삭제(빈 시트 가드: 전체비움으론 삭제 안 함). `/whisky`의 `🔄 시트 동기화` 버튼 + **systemd 타이머 `my-bar-whisky-sync.timer`(10분 주기)**가 호출.
@@ -60,6 +68,13 @@
 - API `GET /api/ranking`: whisky + whisky_profile 조인, 위스키별 neat/rocks/highball 평균(값>0만) + rating(=세 평균의 평균) + ratingCount 반환.
 - UI: 지표 탭(평점/니트/온더락/하이볼) + 주종 필터(2종 이상일 때) + 내림차순 목록(1·2·3위 색상, 아이콘 평점행+수치, 위스키 노트 링크). 점수 없는 항목은 제외. **동점=같은 순위(표준 경쟁 순위: 자기보다 높은 점수 개수+1, 예 5·5·4 → 1·1·3위)**.
 - 홈 카드 🏆 순위 · Sidebar `🏆 순위` 등록.
+
+## 주류시세 `/prices` (2026-07-16)
+
+- 판매점·일자별 주류 시세 메뉴. 원본은 **구글시트 [주류시세] 탭**(`readPriceSheet()` → `GET /api/price-sheet` 헤더명 기준 파싱). 시트가 소스라 페이지 로드마다 최신 반영.
+- **DB 적재**(2026-07-16): `GET /api/price-sheet`가 파싱 후 `hobby.liquor_price` 테이블에 미러(delete-all+insert, best-effort). 위스키 마스터에 없는 주류(카발란·쿠일라·맥캘란 등)도 담기 위해 FK 없는 name 키 테이블. 마이그레이션 `20260716010000_liquor_price.sql`.
+- UI: 주류명 콤보박스(datalist) 검색 + 필터(주종·분류·판매점·피트) + **정렬 토글(가격/이름/일자, 같은 키 재클릭 시 오름↔내림, 기본 가격 오름차순)**. **목록은 한글명 기준 1건씩만**(필터 적용 후 → 한글명별 최신 기준일자·동일자면 최저가 대표 → 정렬). 카운트 "N종·전체 M건".
+- **드릴다운**: 목록에서 주류명 클릭 → 그 술의 **① 가격 추이 그래프**(무의존 SVG 라인차트 `PriceTrendChart`, x=기준일자·y=가격·판매점별 색상 라인+점·범례) + **② 기준일자 × 판매점 가격표**(HTML 피벗, 최저가 셀 강조) + 최저/평균/최고 + 출처링크. 상·하단에 "← 주류시세 목록" 복귀 버튼. 홈 카드 🏷️ 주류시세 · Sidebar `🏷️ 주류시세`.
 
 ## 액세서리 `/accessory` (2026-07-13)
 

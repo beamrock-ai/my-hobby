@@ -26,6 +26,29 @@ export async function readWhiskySheet(): Promise<string[][]> {
   return (res.data.values ?? []) as string[][]
 }
 
+// 주류시세 탭 원본 읽기(주류시세 메뉴용 뷰)
+export async function readPriceSheet(): Promise<string[][]> {
+  const res = await client().spreadsheets.values.get({
+    spreadsheetId: SHEET_ID,
+    range: `${PRICE_TAB}!A1:L3000`,
+  })
+  return (res.data.values ?? []) as string[][]
+}
+
+// 주류시세 탭에 1행 추가(헤더명 기준 위치). fields 키 = 헤더명(주종/분류/캐스크/피트/한글명/판매점/가격/기준일자/용량ml/링크/비고)
+export async function appendPriceRow(fields: Record<string, string | number>): Promise<void> {
+  const s = client()
+  const header = ((await s.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: `${PRICE_TAB}!A1:L1` })).data.values?.[0] ?? []) as string[]
+  const row = header.map((h) => { const v = fields[(h ?? '').trim()]; return v == null ? '' : v })
+  await s.spreadsheets.values.append({
+    spreadsheetId: SHEET_ID,
+    range: `${PRICE_TAB}!A1`,
+    valueInputOption: 'USER_ENTERED',
+    insertDataOption: 'INSERT_ROWS',
+    requestBody: { values: [row] },
+  })
+}
+
 export async function writeWhiskySheet(rows: string[][]): Promise<void> {
   const s = client()
   await s.spreadsheets.values.clear({ spreadsheetId: SHEET_ID, range: `${TAB}!A1:O100000` })

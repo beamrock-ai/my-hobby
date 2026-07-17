@@ -6,7 +6,8 @@ import { useState } from 'react'
 
 const NAV = [
   { href: '/', label: '대시보드' },
-  { href: '/whisky', label: '🍶 주류 노트' },
+  { href: '/whisky', label: '🍶 노트' },
+  { href: '/prices', label: '🏷️ 시세' },
   { href: '/ranking', label: '🏆 순위' },
   { href: '/accessory', label: '🍷 액세서리' },
   { href: '/glossary', label: '📖 용어사전' },
@@ -43,7 +44,7 @@ export default function Sidebar() {
     <>
       {/* 모바일 상단 바 */}
       <div className="flex items-center justify-between border-b border-neutral-200 bg-white px-4 py-3 md:hidden">
-        <p className="text-base font-semibold text-neutral-900">취미</p>
+        <p className="text-base font-semibold text-neutral-900">🍶 my-bar</p>
         <button
           onClick={() => setOpen(!open)}
           className="rounded-lg p-2 text-neutral-600 hover:bg-neutral-100"
@@ -64,7 +65,7 @@ export default function Sidebar() {
         <>
           <div className="fixed inset-0 z-40 bg-black/20 md:hidden" onClick={() => setOpen(false)} />
           <aside className="fixed left-0 top-0 z-50 flex h-full w-64 flex-col border-r border-neutral-200 bg-white px-4 py-6 md:hidden">
-            <p className="mb-4 text-base font-semibold text-neutral-900">취미</p>
+            <p className="mb-4 text-base font-semibold text-neutral-900">🍶 my-bar</p>
             {navLinks}
           </aside>
         </>
@@ -72,7 +73,7 @@ export default function Sidebar() {
 
       {/* PC 사이드바 */}
       <aside className="hidden md:flex h-screen w-52 flex-col border-r border-neutral-200 bg-white px-4 py-6">
-        <p className="mb-4 text-base font-semibold text-neutral-900">취미</p>
+        <p className="mb-4 text-base font-semibold text-neutral-900">🍶 my-bar</p>
         {navLinks}
       </aside>
     </>

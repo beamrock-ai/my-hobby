@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: '취미',
-  description: '취미 기록 · 관리',
+  title: 'my-bar',
+  description: '나의 주류 컬렉션 · 시세 · 테이스팅 노트',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

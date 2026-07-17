@@ -119,7 +119,7 @@ export async function pullAdd(db: DB): Promise<number> {
     await db.from('whisky').upsert(
       {
         name: canon, name_ko: nk, name_en: ne,
-        liquor: sheetLiquor || info.liquor, style: info.style,
+        liquor: sheetLiquor || info.liquor, style: info.style, cask: info.cask, peat: info.peat,
         image_url: (r[13] ?? '').trim() || null,
         type: info.type, distillery: info.distillery, abv: info.abv,
         description: info.description, nose: info.nose, palate: info.palate, finish: info.finish,

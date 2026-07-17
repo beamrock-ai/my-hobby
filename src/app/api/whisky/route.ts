@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { createServiceClient, uploadImage } from '@/lib/supabase'
 import { whiskyInfo } from '@/lib/translate'
 import { pullAdd, pushMirrorSafe } from '@/lib/whisky-sync'
+import { getCatalog } from '@/lib/prices'
+import { appendPriceRow } from '@/lib/sheets'
 
 // 위스키 전체 + 통계 + 각 카테고리 관계 데이터 (화면 렌더용)
 export async function GET() {
@@ -35,19 +37,27 @@ export async function POST(req: Request) {
   const n = String(form.get('name') ?? '').trim()
   if (!n) return NextResponse.json({ error: '위스키명을 입력하세요' }, { status: 400 })
 
+  // 시세 카탈로그 조회(시트 원본) — 선택 시 주종·분류·캐스크·피트를 시트값으로 채움 + PK(한글명) 동일
+  const catalog = await getCatalog().catch(() => [])
+  const catHit = catalog.find((c) => c.name === n)
+  const inCatalog = !!catHit
+
   // 이름(한/영) + 종류·증류소·도수 + 설명·향/맛/피니시 + 향/맛 레이더 + 평가 자동 생성
   const info = await whiskyInfo(n)
-  const canonical = info.name_ko || info.name_en || n // 표시/식별용(한글 우선)
-  const liquorInput = String(form.get('liquor') ?? '').trim() // 주종 수동 지정(있으면 AI값 override)
-  const styleInput = String(form.get('style') ?? '').trim() // 구분 수동 지정(있으면 AI값 override)
-  // 객관 정보(공유)만 whisky에 저장. 주관 테이스팅은 beamrock 프로필로.
+  const liquorInput = String(form.get('liquor') ?? '').trim() // 주종 수동 지정
+  const styleInput = String(form.get('style') ?? '').trim() // 구분 수동 지정
+  // 카탈로그 선택이면 이름을 시세 PK 그대로 유지, 아니면 AI 표준명
+  const canonical = inCatalog ? n : (info.name_ko || info.name_en || n)
+  // 객관 정보(공유)만 whisky에 저장. 주관 테이스팅은 beamrock 프로필로. (카탈로그값 > 수동 > AI)
   const record: Record<string, unknown> = {
     name: canonical,
-    name_ko: info.name_ko,
+    name_ko: inCatalog ? n : info.name_ko,
     name_en: info.name_en,
-    liquor: liquorInput || info.liquor,
+    liquor: catHit?.liquor || liquorInput || info.liquor,
     type: info.type,
-    style: styleInput || info.style,
+    style: catHit?.style || styleInput || info.style,
+    cask: catHit?.cask || info.cask,
+    peat: catHit?.peat || info.peat,
     distillery: info.distillery,
     abv: info.abv,
     description: info.description,
@@ -77,8 +87,26 @@ export async function POST(req: Request) {
       { onConflict: 'whisky_id,author' },
     )
   }
+  // 카탈로그에 없는 새 술 + 가격 입력 시 → 주류시세 시트에도 신규 등록(양방향, PK=한글명 동일)
+  let addedToCatalog = false
+  const priceIn = String(form.get('price') ?? '').replace(/[^0-9]/g, '')
+  if (!inCatalog && priceIn) {
+    try {
+      await appendPriceRow({
+        주종: (record.liquor as string) || '', 분류: (record.style as string) || '',
+        캐스크: (record.cask as string) || '', 피트: (record.peat as string) || '',
+        한글명: canonical, 판매점: String(form.get('shop') ?? '').trim() || '직접입력',
+        가격: parseInt(priceIn), 기준일자: new Date().toISOString().slice(0, 10),
+        용량ml: String(form.get('volume') ?? '').replace(/[^0-9]/g, ''), 비고: '주류노트 등록',
+      })
+      addedToCatalog = true
+    } catch (e) {
+      console.error('[whisky] 주류시세 append 실패:', e)
+    }
+  }
+
   await pushMirrorSafe() // webapp→시트 반영
-  return NextResponse.json(data)
+  return NextResponse.json({ ...data, addedToCatalog })
 }
 
 // 위스키 삭제 (연관 데이터 CASCADE)

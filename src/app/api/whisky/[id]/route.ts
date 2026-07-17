@@ -35,7 +35,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
 }
 
 // 위스키(객관, 공유) 편집 필드 — 주관 테이스팅은 /profile 라우트에서 처리
-const EDITABLE = ['name_ko', 'name_en', 'liquor', 'type', 'style', 'distillery', 'abv', 'description']
+const EDITABLE = ['name_ko', 'name_en', 'liquor', 'type', 'style', 'cask', 'peat', 'distillery', 'abv', 'description']
 
 // 편집 저장
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
